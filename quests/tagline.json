@@ -1,0 +1,3 @@
+{"title": "Write a tagline", "acceptance_criteria": [
+ {"type": "min_chars", "value": 10, "description": "At least 10 characters"},
+ {"type": "max_chars", "value": 60, "description": "At most 60 characters"}]}
