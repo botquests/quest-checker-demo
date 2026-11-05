@@ -1,0 +1,158 @@
+{
+  "format": "readfirst/map@1",
+  "groups": [
+    {
+      "id": "checker",
+      "title": "the checker: reads a quest's acceptance criteria and a submission, prints PASS/FAIL per criterion, exits 1 if any fails",
+      "files": [
+        "checker.py"
+      ],
+      "checks": [
+        {
+          "run": "python -m pytest",
+          "why": "tests/test_checker.py runs check() on quests/summary.json with a passing and a failing submission"
+        }
+      ],
+      "risks": [
+        {
+          "text": "an empty acceptance_criteria list passes every submission: check() returns [] and all([]) is True, so the CLI prints nothing and exits 0",
+          "files": [
+            "checker.py",
+            "quests/**"
+          ]
+        },
+        {
+          "text": "an unknown criterion type falls into `else: ok = False`, so a typo in a quest file (\"max_char\" for \"max_chars\") fails every submission under the criterion's own description, with no hint that the type was not recognised",
+          "files": [
+            "checker.py",
+            "quests/**"
+          ]
+        },
+        {
+          "text": "`value` is read with c.get(\"value\"), but every known type uses it: a criterion without value raises TypeError (`None in str`, `len(...) <= None`) and the CLI crashes with a traceback instead of printing FAIL. `type` and `description` are read with [] and raise KeyError when missing",
+          "files": [
+            "checker.py"
+          ]
+        },
+        {
+          "text": "the CLI reads the submission with open(...).read(), which keeps the file's trailing newline, and max_chars/min_chars count it: a tagline of exactly 60 characters saved by an editor that adds a final newline is 61 and fails \"At most 60 characters\". check() itself counts exactly what it is given",
+          "files": [
+            "checker.py"
+          ]
+        },
+        {
+          "text": "both files are opened without encoding=, so the platform default decides how they are read: on Windows a UTF-8 submission with non-ASCII text can raise UnicodeDecodeError or decode to a different character count than on Linux",
+          "files": [
+            "checker.py"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quests",
+      "title": "quest definitions: a title and a list of acceptance criteria, each with type, value and description",
+      "files": [
+        "quests/**"
+      ],
+      "checks": [
+        {
+          "run": "python -m pytest",
+          "why": "only quests/summary.json is exercised; quests/tagline.json is not loaded by any test"
+        }
+      ],
+      "risks": [
+        {
+          "text": "the checker knows only contains, max_chars and min_chars; any other type in a quest file always fails (see the checker group)",
+          "files": [
+            "quests/**"
+          ]
+        },
+        {
+          "text": "contains is case-sensitive and matches anywhere: \"Source:\" passes on \"No Source: given\" and fails on \"source: example\"",
+          "files": [
+            "quests/summary.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "title": "pytest tests for check(): one passing and one failing submission for the summary quest",
+      "files": [
+        "tests/**"
+      ],
+      "checks": [
+        {
+          "run": "python -m pytest",
+          "why": "the tests themselves"
+        }
+      ],
+      "risks": [
+        {
+          "text": "nothing covers min_chars, the tagline quest, an unknown type, a missing value, or the CLI (its exit code and newline handling), so a change there passes the suite unchecked",
+          "files": [
+            "tests/**",
+            "checker.py"
+          ]
+        },
+        {
+          "text": "the tests put the repository root on sys.path and import checker directly, so moving or renaming checker.py breaks the import, not an assertion",
+          "files": [
+            "tests/test_checker.py"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "docs",
+      "title": "README (usage) and LICENSE",
+      "files": [
+        "README.md",
+        "LICENSE"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "README documents the CLI as `python checker.py <quest> <submission>`; changing the argument order or the exit code changes the documented usage",
+          "files": [
+            "README.md"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "every-quest-checkable",
+      "rule": "every quest has at least one acceptance criterion, and every criterion uses a type checker.py knows (contains, max_chars, min_chars) with a value and a description",
+      "why": "the README promises every quest has a checkable criterion; an empty list passes everything (all([]) is True), and an unknown type or a missing value is not an error at load time, it fails every submission or crashes the CLI",
+      "files": [
+        "quests/**",
+        "checker.py"
+      ],
+      "checks": [
+        {
+          "run": "python -m pytest"
+        }
+      ]
+    },
+    {
+      "id": "new-type-needs-test",
+      "rule": "a new criterion type is added to check() and to tests/test_checker.py in the same change, with one passing and one failing case",
+      "why": "check() raises nothing for an unknown type, so a type that is only half wired up looks like a failing submission, not a bug",
+      "files": [
+        "checker.py",
+        "tests/**"
+      ]
+    },
+    {
+      "id": "exit-code-contract",
+      "rule": "the CLI exits 0 only when every criterion passes and 1 otherwise",
+      "why": "anything scripting the checker (CI, a grader) reads the exit code, not the PASS/FAIL lines",
+      "files": [
+        "checker.py"
+      ]
+    }
+  ],
+  "ignore": []
+}
